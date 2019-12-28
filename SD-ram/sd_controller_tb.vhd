@@ -2,17 +2,18 @@ LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
 USE ieee.numeric_std.ALL;
 
-ENTITY sd_controller IS
+ENTITY sd_controller_tb IS
 END ENTITY;
 
-ARCHITECTURE arch OF sd_controller IS
+ARCHITECTURE arch OF sd_controller_tb IS
 
     SIGNAL clk, rst_n : std_logic := '0';
-    SIGNAL rd, wd : std_logic := '0';
+    SIGNAL rd, wr : std_logic := '0';
     SIGNAL address : std_logic_vector(19 DOWNTO 0) := (OTHERS => '0');
     SIGNAL wr_data, rd_data : std_logic_vector(15 DOWNTO 0) := x"0000";
 
     COMPONENT sd_controller IS
+        GENERIC (INIT_SETUP : INTEGER := 50_000);
         PORT (
             clk, rst_n : IN std_logic;
             bs : OUT std_logic_vector(1 DOWNTO 0) := "00";
@@ -45,14 +46,25 @@ BEGIN
 
     p_stimulate : PROCESS
     BEGIN
-        wait for CLK_PERIOD * 10;
+        WAIT FOR CLK_PERIOD * 10;
         rst_n <= '1';
-        wait for CLK_PERIOD*1000;
-
-        wait;
+        WAIT FOR 1 us;
+        -- ram is now ready
+        address <= std_logic_vector(to_unsigned(1, 20));
+        wr_data <= x"1234";
+        wr <= '1';
+        WAIT FOR CLK_PERIOD;
+        wr <= '0';
+        WAIT FOR 500 ns;
+        rd <= '1';
+        WAIT FOR CLK_PERIOD;
+        rd <= '0';
+    
+        WAIT;
     END PROCESS;
 
     DUT : sd_controller
+    GENERIC MAP(INIT_SETUP => 50)
     PORT MAP(
         clk => clk,
         rst_n => rst_n,
@@ -71,7 +83,7 @@ BEGIN
         address => address,
         rd_data => rd_data,
         wr_data => wr_data,
-        rd_valid => rd_valid,
+        rd_valid => OPEN,
         ready => OPEN
     );
 

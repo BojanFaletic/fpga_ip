@@ -4,6 +4,7 @@ USE ieee.numeric_std.ALL;
 -- input clk should be 100 MHz
 
 ENTITY sd_controller IS
+    GENERIC (INIT_SETUP : INTEGER := 50_000);
     PORT (
         clk, rst_n : IN std_logic;
         bs : OUT std_logic_vector(1 DOWNTO 0) := "00";
@@ -38,7 +39,7 @@ ARCHITECTURE Arch OF sd_controller IS
 
     -- main state machine
     TYPE t_controller_FSM IS (start_s, program_s, program_nop_s, idle_s, active_w_s,
-        active_nop_w_s, active_r_s, active_nop_r_s, read_s, write_s, close_s, close_nop_s, refresh_s, refresh_nop_s);
+        active_nop_w_s, active_r_s, active_nop_r_s, read_s, read_nop_s, write_s, write_nop_s, close_s, close_nop_s, refresh_s, refresh_nop_s);
     SIGNAL controller_FSM : t_controller_FSM;
 
     -- auto refresh signals
@@ -69,11 +70,11 @@ BEGIN
     cas <= ctrl_signal(1);
     we <= ctrl_signal(0);
 
-    row_addr <= address(19 DOWNTO 12);
-    column_addr <= address(11 DOWNTO 0);
+    column_addr <= address(19 DOWNTO 12);
+    row_addr <= address(11 DOWNTO 0);
 
     p_controller : PROCESS (clk)
-        VARIABLE delay : INTEGER RANGE 0 TO 100_000 := 0;
+        VARIABLE delay : INTEGER RANGE 0 TO INIT_SETUP := 0;
     BEGIN
         IF rising_edge(clk) THEN
             IF rst_n = '0' THEN
@@ -84,7 +85,7 @@ BEGIN
                     WHEN start_s =>
                         -- wait for some time for power stabilization
                         ready <= '0';
-                        IF delay < 100_000 THEN
+                        IF delay < INIT_SETUP THEN
                             delay := delay + 1;
                         ELSE
                             delay := 0;
@@ -96,7 +97,7 @@ BEGIN
                         addr <= PROGRAM_CFG_ADDR;
                         controller_FSM <= program_nop_s;
                     WHEN program_nop_s =>
-                        ctrl_signal <= PROGRAM_NOP;
+                        -- ctrl_signal <= NOP_CMD;
                         controller_FSM <= idle_s;
 
                     WHEN idle_s =>
@@ -122,12 +123,14 @@ BEGIN
                         addr <= row_addr;
                         controller_FSM <= active_nop_w_s;
                     WHEN active_nop_w_s =>
-                        ctrl_signal <= NOP_CMD;
+                        -- ctrl_signal <= NOP_CMD;
                         controller_FSM <= write_s;
                     WHEN write_s =>
                         ctrl_signal <= WRITE_CMD;
                         addr <= ENABLE_AUTO_PRECHARGE & column_addr;
                         data <= wr_data;
+                        controller_FSM <= write_nop_s;
+                    WHEN write_nop_s =>
                         controller_FSM <= close_s;
 
                     WHEN active_r_s =>
@@ -135,13 +138,15 @@ BEGIN
                         addr <= row_addr;
                         controller_FSM <= active_nop_r_s;
                     WHEN active_nop_r_s =>
-                        ctrl_signal <= NOP_CMD;
+                        -- ctrl_signal <= NOP_CMD;
                         controller_FSM <= read_s;
                     WHEN read_s =>
                         ctrl_signal <= READ_CMD;
                         addr <= ENABLE_AUTO_PRECHARGE & column_addr;
                         rd_data <= data;
                         rd_valid <= '1';
+                        controller_FSM <= read_nop_s;
+                    WHEN read_nop_s =>
                         controller_FSM <= close_s;
 
                     WHEN close_s =>
@@ -155,9 +160,13 @@ BEGIN
                         ctrl_signal <= AUTO_REFRESH_CMD;
                         controller_FSM <= refresh_nop_s;
                     WHEN refresh_nop_s =>
-                        ctrl_signal <= NOP_CMD;
+                        -- ctrl_signal <= NOP_CMD;
                         controller_FSM <= idle_s;
                         ready <= '1';
+
+                    WHEN OTHERS =>
+                        ASSERT false REPORT "Undefined state";
+                        controller_FSM <= idle_s;
                 END CASE;
             END IF;
         END IF;

@@ -27,7 +27,8 @@ ARCHITECTURE Arch OF seven_seg IS
             OUT_FREQ : INTEGER := 1_000);
         PORT (
             clk, rst_n : IN std_logic;
-            enable : OUT std_logic);
+            enable : OUT std_logic
+        );
     END COMPONENT;
 
     COMPONENT binary_to_BCD IS
@@ -44,6 +45,7 @@ ARCHITECTURE Arch OF seven_seg IS
             o_DV : OUT std_logic
         );
     END COMPONENT;
+
     SIGNAL prescaler_enable : std_logic;
     SIGNAL enable_digit : INTEGER RANGE 0 TO NUM_OF_DIGIT - 1 := 0;
 
@@ -82,16 +84,16 @@ BEGIN
             -- decimal point is zero
             digit_data(7) <= '1';
             CASE bcd_digit IS
-                WHEN "0000" => digit_data(6 downto 0) <= not "0000001"; -- "0"     
-                WHEN "0001" => digit_data(6 downto 0) <= not "1001111"; -- "1" 
-                WHEN "0010" => digit_data(6 downto 0) <= not "0010010"; -- "2" 
-                WHEN "0011" => digit_data(6 downto 0) <= not "0000110"; -- "3" 
-                WHEN "0100" => digit_data(6 downto 0) <= not "1001100"; -- "4" 
-                WHEN "0101" => digit_data(6 downto 0) <= not "0100100"; -- "5" 
-                WHEN "0110" => digit_data(6 downto 0) <= not "0100000"; -- "6" 
-                WHEN "0111" => digit_data(6 downto 0) <= not "0001111"; -- "7" 
-                WHEN "1000" => digit_data(6 downto 0) <= not "0000000"; -- "8"     
-                WHEN OTHERS => digit_data(6 downto 0) <= not "0000100"; -- "9" 
+                WHEN "0000" => digit_data(6 DOWNTO 0) <= NOT "0000001"; -- "0"     
+                WHEN "0001" => digit_data(6 DOWNTO 0) <= NOT "1001111"; -- "1" 
+                WHEN "0010" => digit_data(6 DOWNTO 0) <= NOT "0010010"; -- "2" 
+                WHEN "0011" => digit_data(6 DOWNTO 0) <= NOT "0000110"; -- "3" 
+                WHEN "0100" => digit_data(6 DOWNTO 0) <= NOT "1001100"; -- "4" 
+                WHEN "0101" => digit_data(6 DOWNTO 0) <= NOT "0100100"; -- "5" 
+                WHEN "0110" => digit_data(6 DOWNTO 0) <= NOT "0100000"; -- "6" 
+                WHEN "0111" => digit_data(6 DOWNTO 0) <= NOT "0001111"; -- "7" 
+                WHEN "1000" => digit_data(6 DOWNTO 0) <= NOT "0000000"; -- "8"     
+                WHEN OTHERS => digit_data(6 DOWNTO 0) <= NOT "0000100"; -- "9" 
             END CASE;
         END IF;
     END PROCESS;
