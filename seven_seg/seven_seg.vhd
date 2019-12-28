@@ -21,7 +21,7 @@ ARCHITECTURE Arch OF seven_seg IS
     CONSTANT SEG_FREQ_HZ : INTEGER := 200;
     CONSTANT DECIMAL_DIGITS : INTEGER := INTEGER(ceil(log2(real(10 ** 4 - 1))));
 
-    COMPONENT prescaler IS
+    COMPONENT prescaler
         GENERIC (
             CLK_FREQ : INTEGER := 50_000_000;
             OUT_FREQ : INTEGER := 1_000);
@@ -31,7 +31,7 @@ ARCHITECTURE Arch OF seven_seg IS
         );
     END COMPONENT;
 
-    COMPONENT binary_to_BCD IS
+    COMPONENT binary_to_BCD
         GENERIC (
             g_INPUT_WIDTH : IN POSITIVE;
             g_DECIMAL_DIGITS : IN POSITIVE
