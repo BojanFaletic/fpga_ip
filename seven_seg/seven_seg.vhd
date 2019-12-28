@@ -21,31 +21,6 @@ ARCHITECTURE Arch OF seven_seg IS
     CONSTANT SEG_FREQ_HZ : INTEGER := 200;
     CONSTANT DECIMAL_DIGITS : INTEGER := INTEGER(ceil(log2(real(10 ** 4 - 1))));
 
-    COMPONENT prescaler
-        GENERIC (
-            CLK_FREQ : INTEGER := 50_000_000;
-            OUT_FREQ : INTEGER := 1_000);
-        PORT (
-            clk, rst_n : IN std_logic;
-            enable : OUT std_logic
-        );
-    END COMPONENT;
-
-    COMPONENT binary_to_BCD
-        GENERIC (
-            g_INPUT_WIDTH : IN POSITIVE;
-            g_DECIMAL_DIGITS : IN POSITIVE
-        );
-        PORT (
-            i_Clock : IN std_logic;
-            i_Start : IN std_logic;
-            i_Binary : IN std_logic_vector(g_INPUT_WIDTH - 1 DOWNTO 0);
-
-            o_BCD : OUT std_logic_vector(g_DECIMAL_DIGITS * 4 - 1 DOWNTO 0);
-            o_DV : OUT std_logic
-        );
-    END COMPONENT;
-
     SIGNAL prescaler_enable : std_logic;
     SIGNAL enable_digit : INTEGER RANGE 0 TO NUM_OF_DIGIT - 1 := 0;
 
@@ -98,7 +73,7 @@ BEGIN
         END IF;
     END PROCESS;
 
-    U_CLK_DIV : prescaler
+    U_CLK_DIV : entity work.prescaler
     GENERIC MAP(
         CLK_FREQ => CLK_FREQ,
         OUT_FREQ => SEG_FREQ_HZ)
@@ -107,7 +82,7 @@ BEGIN
         enable => prescaler_enable
     );
 
-    U_DEC_TO_BCD : binary_to_BCD
+    U_DEC_TO_BCD : entity work.binary_to_BCD
     GENERIC MAP(
         g_INPUT_WIDTH => DECIMAL_DIGITS,
         g_DECIMAL_DIGITS => NUM_OF_DIGIT)
