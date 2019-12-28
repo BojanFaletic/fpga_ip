@@ -1,95 +1,112 @@
+--------------------------------------------------------------------------------
+--
+--   FileName:         binary_to_bcd.vhd
+--   Dependencies:     binary_to_bcd_digit.vhd
+--   Design Software:  Quartus II 64-bit Version 13.1.0 Build 162 SJ Web Edition
+--
+--   HDL CODE IS PROVIDED "AS IS."  DIGI-KEY EXPRESSLY DISCLAIMS ANY
+--   WARRANTY OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT
+--   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+--   PARTICULAR PURPOSE, OR NON-INFRINGEMENT. IN NO EVENT SHALL DIGI-KEY
+--   BE LIABLE FOR ANY INCIDENTAL, SPECIAL, INDIRECT OR CONSEQUENTIAL
+--   DAMAGES, LOST PROFITS OR LOST DATA, HARM TO YOUR EQUIPMENT, COST OF
+--   PROCUREMENT OF SUBSTITUTE GOODS, TECHNOLOGY OR SERVICES, ANY CLAIMS
+--   BY THIRD PARTIES (INCLUDING BUT NOT LIMITED TO ANY DEFENSE THEREOF),
+--   ANY CLAIMS FOR INDEMNITY OR CONTRIBUTION, OR OTHER SIMILAR COSTS.
+--
+--   Version History
+--   Version 1.0 6/15/2017 Scott Larson
+--     Initial Public Release
+--   Version 1.1 6/23/2017 Scott Larson
+--     Fixed small corner-case bug
+--   Version 1.2 1/16/2018 Scott Larson
+--     Fixed reset logic to include resetting the state machine
+--    
+--------------------------------------------------------------------------------
+
 LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
-USE ieee.numeric_std.ALL;
 
--------------------------------------------------------------------------------
--- File Downloaded from http://www.nandland.com
--------------------------------------------------------------------------------
-
-ENTITY binary_to_BCD IS
+ENTITY binary_to_bcd IS
     GENERIC (
-        g_INPUT_WIDTH : IN POSITIVE;
-        g_DECIMAL_DIGITS : IN POSITIVE
-    );
+        bits : INTEGER := 10; --size of the binary input numbers in bits
+        digits : INTEGER := 3); --number of BCD digits to convert to
     PORT (
-        i_Clock : IN std_logic;
-        i_Start : IN std_logic;
-        i_Binary : IN std_logic_vector(g_INPUT_WIDTH - 1 DOWNTO 0);
+        clk : IN STD_LOGIC; --system clock
+        reset_n : IN STD_LOGIC; --active low asynchronus reset
+        ena : IN STD_LOGIC; --latches in new binary number and starts conversion
+        binary : IN STD_LOGIC_VECTOR(bits - 1 DOWNTO 0); --binary number to convert
+        busy : OUT STD_LOGIC; --indicates conversion in progress
+        bcd : OUT STD_LOGIC_VECTOR(digits * 4 - 1 DOWNTO 0)); --resulting BCD number
+END binary_to_bcd;
 
-        o_BCD : OUT std_logic_vector(g_DECIMAL_DIGITS * 4 - 1 DOWNTO 0);
-        o_DV : OUT std_logic
-    );
-END ENTITY binary_to_BCD;
+ARCHITECTURE logic OF binary_to_bcd IS
+    TYPE machine IS(idle, convert); --needed states
+    SIGNAL state : machine; --state machine
+    SIGNAL binary_reg : STD_LOGIC_VECTOR(bits - 1 DOWNTO 0); --latched in binary number
+    SIGNAL bcd_reg : STD_LOGIC_VECTOR(digits * 4 - 1 DOWNTO 0); --bcd result register
+    SIGNAL converter_ena : STD_LOGIC;
+    SIGNAL converter_inputs : STD_LOGIC_VECTOR(digits DOWNTO 0); --inputs into each BCD single digit converter
 
-ARCHITECTURE rtl OF binary_to_BCD IS
-
-    TYPE t_BCD_State IS (s_IDLE, s_SHIFT, s_CHECK_SHIFT_INDEX, s_ADD,
-        s_CHECK_DIGIT_INDEX, s_BCD_DONE);
-    SIGNAL r_SM_Main : t_BCD_State := s_IDLE;
-    SIGNAL r_BCD : std_logic_vector(g_DECIMAL_DIGITS * 4 - 1 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL r_Binary : std_logic_vector(g_INPUT_WIDTH - 1 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL r_Digit_Index : NATURAL RANGE 0 TO g_DECIMAL_DIGITS - 1 := 0;
-    SIGNAL r_Loop_Count : NATURAL RANGE 0 TO g_INPUT_WIDTH - 1 := 0;
+    --binary to BCD single digit converter component
+    COMPONENT binary_to_bcd_digit IS
+        PORT (
+            clk : IN STD_LOGIC;
+            reset_n : IN STD_LOGIC;
+            ena : IN STD_LOGIC;
+            binary : IN STD_LOGIC;
+            c_out : BUFFER STD_LOGIC;
+            bcd : BUFFER STD_LOGIC_VECTOR(3 DOWNTO 0));
+    END COMPONENT binary_to_bcd_digit;
 
 BEGIN
-    Double_Dabble : PROCESS (i_Clock)
-        VARIABLE v_Upper : NATURAL;
-        VARIABLE v_Lower : NATURAL;
-        VARIABLE v_BCD_Digit : unsigned(3 DOWNTO 0);
+
+    PROCESS (reset_n, clk)
+        VARIABLE bit_count : INTEGER RANGE 0 TO bits + 1 := 0; --counts the binary bits shifted into the converters
     BEGIN
-        IF rising_edge(i_Clock) THEN
-            CASE r_SM_Main IS
-                WHEN s_IDLE =>
-                    IF i_Start = '1' THEN
-                        r_BCD <= (OTHERS => '0');
-                        r_Binary <= i_Binary;
-                        r_SM_Main <= s_SHIFT;
-                    ELSE
-                        r_SM_Main <= s_IDLE;
-                    END IF;
-                WHEN s_SHIFT =>
-                    r_BCD <= r_BCD(r_BCD'left - 1 DOWNTO 0) & r_Binary(r_Binary'left);
-                    r_Binary <= r_Binary(r_Binary'left - 1 DOWNTO 0) & '0';
-                    r_SM_Main <= s_CHECK_SHIFT_INDEX;
-                WHEN s_CHECK_SHIFT_INDEX =>
-                    IF r_Loop_Count = g_INPUT_WIDTH - 1 THEN
-                        r_Loop_Count <= 0;
-                        r_SM_Main <= s_BCD_DONE;
-                    ELSE
-                        r_Loop_Count <= r_Loop_Count + 1;
-                        r_SM_Main <= s_ADD;
+        IF (reset_n = '0') THEN --asynchronous reset asserted
+            bit_count := 0; --reset bit counter
+            busy <= '1'; --indicate not available
+            converter_ena <= '0'; --disable the converter
+            bcd <= (OTHERS => '0'); --clear BCD result port
+            state <= idle; --reset state machine
+        ELSIF (clk'EVENT AND clk = '1') THEN --system clock rising edge
+            CASE state IS
+
+                WHEN idle => --idle state
+                    IF (ena = '1') THEN --converter is enabled
+                        busy <= '1'; --indicate conversion in progress
+                        converter_ena <= '1'; --enable the converter
+                        binary_reg <= binary; --latch in binary number for conversion
+                        bit_count := 0; --reset bit counter
+                        state <= convert; --go to convert state
+                    ELSE --converter is not enabled
+                        busy <= '0'; --indicate available
+                        converter_ena <= '0'; --disable the converter
+                        state <= idle; --remain in idle state
                     END IF;
 
-                WHEN s_ADD =>
-                    v_Upper := r_Digit_Index * 4 + 3;
-                    v_Lower := r_Digit_Index * 4;
-                    v_BCD_Digit := unsigned(r_BCD(v_Upper DOWNTO v_Lower));
-
-                    IF v_BCD_Digit > 4 THEN
-                        v_BCD_Digit := v_BCD_Digit + 3;
+                WHEN convert => --convert state
+                    IF (bit_count < bits + 1) THEN --not all bits shifted in
+                        bit_count := bit_count + 1; --increment bit counter
+                        converter_inputs(0) <= binary_reg(bits - 1); --shift next bit into converter
+                        binary_reg <= binary_reg(bits - 2 DOWNTO 0) & '0'; --shift binary number register
+                        state <= convert; --remain in convert state
+                    ELSE --all bits shifted in
+                        busy <= '0'; --indicate conversion is complete
+                        converter_ena <= '0'; --disable the converter
+                        bcd <= bcd_reg; --output result
+                        state <= idle; --return to idle state
                     END IF;
-
-                    r_BCD(v_Upper DOWNTO v_Lower) <= std_logic_vector(v_BCD_Digit);
-                    r_SM_Main <= s_CHECK_DIGIT_INDEX;
-                WHEN s_CHECK_DIGIT_INDEX =>
-                    IF r_Digit_Index = g_DECIMAL_DIGITS - 1 THEN
-                        r_Digit_Index <= 0;
-                        r_SM_Main <= s_SHIFT;
-                    ELSE
-                        r_Digit_Index <= r_Digit_Index + 1;
-                        r_SM_Main <= s_ADD;
-                    END IF;
-                WHEN s_BCD_DONE =>
-                    r_SM_Main <= s_IDLE;
-                WHEN OTHERS =>
-                    r_SM_Main <= s_IDLE;
 
             END CASE;
         END IF;
-    END PROCESS Double_Dabble;
+    END PROCESS;
 
-    o_DV <= '1' WHEN r_SM_Main = s_BCD_DONE ELSE
-        '0';
-    o_BCD <= r_BCD;
+    --instantiate the converter logic for the specified number of digits
+    bcd_digits : FOR i IN 1 TO digits GENERATE
+        digit_0 : binary_to_bcd_digit
+        PORT MAP(clk, reset_n, converter_ena, converter_inputs(i - 1), converter_inputs(i), bcd_reg(i * 4 - 1 DOWNTO i * 4 - 4));
+    END GENERATE;
 
-END ARCHITECTURE rtl;
+END logic;

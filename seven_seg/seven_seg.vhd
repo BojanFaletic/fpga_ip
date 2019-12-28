@@ -19,39 +19,53 @@ END ENTITY;
 
 ARCHITECTURE Arch OF seven_seg IS
     CONSTANT SEG_FREQ_HZ : INTEGER := 200;
-    CONSTANT DECIMAL_DIGITS : INTEGER := INTEGER(ceil(log2(real(10 ** 4 - 1))));
+    CONSTANT DECIMAL_DIGITS : INTEGER := INTEGER(ceil(log2(real(10 ** NUM_OF_DIGIT - 1))));
 
-    SIGNAL prescaler_enable : std_logic;
+    SIGNAL prescaler_enable : std_logic := '1';
     SIGNAL enable_digit : INTEGER RANGE 0 TO NUM_OF_DIGIT - 1 := 0;
 
     SIGNAL binary_data : std_logic_vector(DECIMAL_DIGITS - 1 DOWNTO 0);
 
-    SIGNAL conversion_done : std_logic;
-    SIGNAL bcd_data : std_logic_vector(DECIMAL_DIGITS * 4 - 1 DOWNTO 0);
-    SIGNAL bcd_digit : std_logic_vector(3 DOWNTO 0);
+    SIGNAL conversion_busy : std_logic;
+    SIGNAL bcd_data, bcd_data_buffered : std_logic_vector(NUM_OF_DIGIT * 4 - 1 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL bcd_digit : std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
 BEGIN
 
     binary_data <= std_logic_vector(to_unsigned(data, DECIMAL_DIGITS));
-
-    p_sel_display : PROCESS (clk)
+    p_hold_data : PROCESS (clk)
     BEGIN
         IF rising_edge(clk) THEN
-            IF rst_n = '0' THEN
-                enable_digit <= 0;
-            ELSE
-                IF prescaler_enable = '1' THEN
-                    IF enable_digit /= NUM_OF_DIGIT - 1 THEN
-                        enable_digit <= enable_digit + 1;
-                    ELSE
-                        enable_digit <= 0;
-                    END IF;
-                END IF;
+            IF conversion_busy = '0' THEN
+                bcd_data_buffered <= bcd_data;
             END IF;
-            active_digit <= (OTHERS => '1');
-            active_digit(enable_digit) <= '0';
-            digit_data <= bcd_data(4 * (enable_digit + 1) - 1 DOWNTO 4 * enable_digit);
         END IF;
     END PROCESS;
+
+    gen_if_multiple : IF NUM_OF_DIGIT > 1 GENERATE
+        p_sel_display : PROCESS (clk)
+        BEGIN
+            IF rising_edge(clk) THEN
+                IF rst_n = '0' THEN
+                    enable_digit <= 0;
+                ELSE
+                    IF prescaler_enable = '1' THEN
+                        IF enable_digit /= NUM_OF_DIGIT - 1 THEN
+                            enable_digit <= enable_digit + 1;
+                        ELSE
+                            enable_digit <= 0;
+                        END IF;
+                    END IF;
+                END IF;
+                active_digit <= (OTHERS => '1');
+                active_digit(enable_digit) <= '0';
+                bcd_digit <= bcd_data_buffered(4 * (enable_digit + 1) - 1 DOWNTO 4 * enable_digit);
+            END IF;
+        END PROCESS;
+    END GENERATE;
+    gen_if_one_digit : IF NUM_OF_DIGIT = 1 GENERATE
+        active_digit(0) <= '0';
+        bcd_digit <= bcd_data_buffered(4 - 1 DOWNTO 0);
+    END GENERATE;
 
     p_sel_digit : PROCESS (clk)
     BEGIN
@@ -73,26 +87,28 @@ BEGIN
         END IF;
     END PROCESS;
 
-    U_CLK_DIV : entity work.prescaler
-    GENERIC MAP(
-        CLK_FREQ => CLK_FREQ,
-        OUT_FREQ => SEG_FREQ_HZ)
-    PORT MAP(
-        clk => clk, rst_n => rst_n,
-        enable => prescaler_enable
-    );
+    gen_if_multiple_digits : IF NUM_OF_DIGIT > 1 GENERATE
+        U_CLK_DIV : ENTITY work.prescaler
+            GENERIC MAP(
+                CLK_FREQ => CLK_FREQ,
+                OUT_FREQ => SEG_FREQ_HZ)
+            PORT MAP(
+                clk => clk, rst_n => rst_n,
+                enable => prescaler_enable
+            );
+    END GENERATE;
 
-    U_DEC_TO_BCD : entity work.binary_to_BCD
-    GENERIC MAP(
-        g_INPUT_WIDTH => DECIMAL_DIGITS,
-        g_DECIMAL_DIGITS => NUM_OF_DIGIT)
-    PORT MAP(
-        i_Clock => clk,
-        i_Start => data_valid,
-        i_Binary => binary_data,
-
-        o_BCD => bcd_data,
-        o_DV => conversion_done
-    );
+    U_DEC_TO_BCD : ENTITY work.binary_to_BCD
+        GENERIC MAP(
+            bits => DECIMAL_DIGITS,
+            digits => NUM_OF_DIGIT)
+        PORT MAP(
+            clk => clk,
+            reset_n => rst_n,
+            ena => data_valid,
+            binary => binary_data,
+            busy => conversion_busy,
+            bcd => bcd_data
+        );
 
 END ARCHITECTURE;

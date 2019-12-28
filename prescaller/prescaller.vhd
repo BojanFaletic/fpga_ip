@@ -20,7 +20,7 @@ BEGIN
     BEGIN
         IF rising_edge(clk) THEN
             enable <= '0';
-            IF rst_n = '1' THEN
+            IF rst_n = '0' THEN
                 counter <= 0;
             ELSE
                 IF counter = COUNT_TO - 1 THEN
