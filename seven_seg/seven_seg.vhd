@@ -19,6 +19,7 @@ END ENTITY;
 
 ARCHITECTURE Arch OF seven_seg IS
     CONSTANT SEG_FREQ_HZ : INTEGER := 200;
+    CONSTANT FREQ_PER_DIGIT : INTEGER := SEG_FREQ_HZ * NUM_OF_DIGIT;
     CONSTANT DECIMAL_DIGITS : INTEGER := INTEGER(ceil(log2(real(10 ** NUM_OF_DIGIT - 1))));
 
     SIGNAL prescaler_enable : std_logic := '1';
@@ -71,18 +72,18 @@ BEGIN
     BEGIN
         IF rising_edge(clk) THEN
             -- decimal point is zero
-            digit_data(7) <= '1';
+            digit_data(0) <= '1';
             CASE bcd_digit IS
-                WHEN "0000" => digit_data(6 DOWNTO 0) <= NOT "0000001"; -- "0"     
-                WHEN "0001" => digit_data(6 DOWNTO 0) <= NOT "1001111"; -- "1" 
-                WHEN "0010" => digit_data(6 DOWNTO 0) <= NOT "0010010"; -- "2" 
-                WHEN "0011" => digit_data(6 DOWNTO 0) <= NOT "0000110"; -- "3" 
-                WHEN "0100" => digit_data(6 DOWNTO 0) <= NOT "1001100"; -- "4" 
-                WHEN "0101" => digit_data(6 DOWNTO 0) <= NOT "0100100"; -- "5" 
-                WHEN "0110" => digit_data(6 DOWNTO 0) <= NOT "0100000"; -- "6" 
-                WHEN "0111" => digit_data(6 DOWNTO 0) <= NOT "0001111"; -- "7" 
-                WHEN "1000" => digit_data(6 DOWNTO 0) <= NOT "0000000"; -- "8"     
-                WHEN OTHERS => digit_data(6 DOWNTO 0) <= NOT "0000100"; -- "9" 
+                WHEN "0000" => digit_data(7 DOWNTO 1) <= "0000001"; -- "0"     
+                WHEN "0001" => digit_data(7 DOWNTO 1) <= "1001111"; -- "1" 
+                WHEN "0010" => digit_data(7 DOWNTO 1) <= "0010010"; -- "2" 
+                WHEN "0011" => digit_data(7 DOWNTO 1) <= "0000110"; -- "3" 
+                WHEN "0100" => digit_data(7 DOWNTO 1) <= "1001100"; -- "4" 
+                WHEN "0101" => digit_data(7 DOWNTO 1) <= "0100100"; -- "5" 
+                WHEN "0110" => digit_data(7 DOWNTO 1) <= "0100000"; -- "6" 
+                WHEN "0111" => digit_data(7 DOWNTO 1) <= "0001111"; -- "7" 
+                WHEN "1000" => digit_data(7 DOWNTO 1) <= "0000000"; -- "8"     
+                WHEN OTHERS => digit_data(7 DOWNTO 1) <= "0000100"; -- "9" 
             END CASE;
         END IF;
     END PROCESS;
@@ -91,7 +92,7 @@ BEGIN
         U_CLK_DIV : ENTITY work.prescaler
             GENERIC MAP(
                 CLK_FREQ => CLK_FREQ,
-                OUT_FREQ => SEG_FREQ_HZ)
+                OUT_FREQ => FREQ_PER_DIGIT)
             PORT MAP(
                 clk => clk, rst_n => rst_n,
                 enable => prescaler_enable
