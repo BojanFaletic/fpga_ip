@@ -27,7 +27,7 @@ ARCHITECTURE Behavioral OF ESP_reset IS
 
     SIGNAL rst_phases : INTEGER RANGE 0 TO C_RST_SEQUENCE_LENGTH * 2 := 0;
     SIGNAL expecting_edge : std_logic := '0';
-
+	 
 BEGIN
 
     p_reset_detector : PROCESS (clk)

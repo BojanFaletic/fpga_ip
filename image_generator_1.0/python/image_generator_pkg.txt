@@ -1,0 +1,12 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+package image_generator_pkg is
+  constant C_LINE_WIDTH : integer := #width#;
+  constant C_LINE_HEIGHT : integer := #height#;
+  constant C_IS_GRAY : boolean := #gray#;
+  constant C_FILENAME : string := #name#;
+end package;
+
+package body image_generator_pkg is
+end package body;
